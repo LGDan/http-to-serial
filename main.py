@@ -3,7 +3,6 @@ from os.path import exists
 from fastapi import FastAPI, Request
 import glob
 import serial
-from serial import Serial
 from pydantic import BaseModel
 import re
 import collections
@@ -24,8 +23,6 @@ open_ports = {}
 
 last_chars = collections.deque(maxlen=4096)
 last_lines = collections.deque(maxlen=32)
-
-#class
 
 
 @app.get("/")
@@ -53,7 +50,11 @@ async def check_port_exists(device_name: str):
 
 @app.get("/api/v1/device/{device_name}/lastlines/{line_count}", tags=["Cached Data"])
 async def get_last_n_lines_from_device(device_name: str, line_count: int):
-    return {}
+    return {
+        "device": device_name,
+        "last": line_count,
+        "result": "".join(map(chr,list(last_chars))).splitlines()[-line_count:]
+    }
 
 @app.get("/api/v1/device/{device_name}/lastchars/{char_count}", tags=["Cached Data"])
 async def get_last_n_characters_from_device(device_name: str, char_count: int):
@@ -61,7 +62,7 @@ async def get_last_n_characters_from_device(device_name: str, char_count: int):
     return {
         "device": device_name,
         "last": char_count,
-        "result": list(itertools.islice(last_chars, 0, char_count))
+        "result": "".join(map(chr,list(itertools.islice(last_chars, 0, char_count))))
     }
 
 
@@ -169,7 +170,8 @@ async def writeline_to_device(device_name: str, string: str):
 async def read_n_bytes_from_device(device_name: str, count: int):
     if device_name in list(open_ports.keys()):
         read_result = open_ports[device_name].read(count)
-        last_chars.append(read_result)
+        for b in read_result: last_chars.append(b)
+        #last_chars.append(read_result)
         return {
             "status": "success",
             "read_result": read_result
@@ -184,7 +186,7 @@ async def read_n_bytes_from_device(device_name: str, count: int):
 async def read_line_from_device(device_name: str):
     if device_name in list(open_ports.keys()):
         read_result = open_ports[device_name].readline()
-        last_chars.append(read_result)
+        for b in read_result: last_chars.append(b)
         return {
             "status": "success",
             "read_result": read_result
@@ -199,7 +201,7 @@ async def read_line_from_device(device_name: str):
 async def read_all_from_device(device_name: str):
     if device_name in list(open_ports.keys()):
         read_result = open_ports[device_name].readall()
-        last_chars.append(read_result)
+        for b in read_result: last_chars.append(b)
         return {
             "status": "success",
             "read_result": read_result
